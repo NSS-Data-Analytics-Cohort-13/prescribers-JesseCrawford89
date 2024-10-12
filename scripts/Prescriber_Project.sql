@@ -26,7 +26,7 @@ WHERE p2.total_claim_count IS NOT NULL
 GROUP BY p1.npi, p1.nppes_provider_last_org_name, p1.nppes_provider_first_name, p1.specialty_description
 ORDER BY Total_Claim_Count DESC
 
---Answer: Bruce Pendley, NPI #1881634483, specialty description Family Practice, has the highest total claim count of 99707.
+--Answer: Bruce Pendley, NPI #1881634483, specialty description Family Practice, has the highest total claim count of 99,707.
 
 --Question 2: 
 
@@ -61,10 +61,17 @@ ORDER BY Claim_Count DESC;
 
 --c. Challenge Question: Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?
 
-SELECT p1.specialty_description AS Specialty
-	,	
+SELECT    DISTINCT p1.specialty_description AS Specialty
+	,     p2.drug_name AS Prescription
+FROM prescriber AS p1
+FULL JOIN prescription AS p2
+   USING (npi)
+WHERE p2.drug_name IS NULL
+GROUP BY specialty, prescription
+
 
 --d. Difficult Bonus: Do not attempt until you have solved all other problems! For each specialty, report the percentage of total claims by that specialty which are for opioids. Which specialties have a high percentage of opioids?
+
 
 
 --Question 3: 
@@ -84,16 +91,16 @@ ORDER BY Cost DESC
 
 --b. Which drug (generic_name) has the hightest total cost per day? Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.
 
-SELECT 	d.generic_name
-	, 	ROUND((SUM(p.total_drug_cost)/(365*4)), 2) AS Daily_Cost
+SELECT  d.generic_name
+    ,   ROUND(SUM(p.total_drug_cost)/SUM(p.total_day_supply), 2) AS Daily_Cost
 FROM drug AS d
 LEFT JOIN prescription AS p
-	USING (drug_name)
+        USING (drug_name)
 WHERE p.total_drug_cost IS NOT NULL
 GROUP BY d.generic_name
 ORDER BY Daily_Cost DESC
 
---Answer: Insulin has the highest cost per day at 71413.74
+--Answer: C1 Esterase Inhibitor has the highest cost per day at 3495.22
 
 --Question 4
 
@@ -122,7 +129,7 @@ SELECT 	CASE
 FROM drug AS d
 FULL JOIN prescription AS p
 	USING (drug_name)
-WHERE p.total_drug_cost IS NOT NULL --AND drug_type <> 'Neither'
+WHERE p.total_drug_cost IS NOT NULL
 GROUP BY drug_type
 ORDER BY Total_Cost DESC
 
@@ -201,7 +208,7 @@ ORDER BY SUM(p.total_claim_count) DESC
 
 --c. Add another column to you answer from the previous part which gives the prescriber first and last name associated with each row.
 
-SELECT p2.nppes_provider_first_name, p2.nppes_provider_last_org_name, p1.drug_name AS Drug, SUM(p1.total_claim_count) AS Total_Claim_Count, d.opioid_drug_flag AS Opioid
+SELECT CONCAT(p2.nppes_provider_first_name,' ',p2.nppes_provider_last_org_name) AS Provider_Name, p1.drug_name AS Drug, SUM(p1.total_claim_count) AS Total_Claim_Count, d.opioid_drug_flag AS Opioid
 FROM prescription AS p1
 RIGHT JOIN drug as d
 	USING(drug_name)
@@ -215,30 +222,39 @@ ORDER BY SUM(p1.total_claim_count) DESC
 
 --a. First, create a list of all npi/drug_name combinations for pain management specialists (specialty_description = 'Pain Management) in the city of Nashville (nppes_provider_city = 'NASHVILLE'), where the drug is an opioid (opiod_drug_flag = 'Y'). Warning: Double-check your query before running it. You will only need to use the prescriber and drug tables since you don't need the claims numbers yet.
 
-/*SELECT p.npi, d.drug_name
-FROM prescriber
-RIGHT JOIN drug
-	USING*/
 
-SELECT p1.npi, d.drug_name
-FROM prescription as p1
-LEFT JOIN drug as d
-	USING (drug_name)
-LEFT JOIN prescriber AS p2
-	USING (npi)
-WHERE p2.specialty_description ='Pain Management' AND p2.nppes_provider_city = 'NASHVILLE' AND d.opioid_drug_flag = 'Y'
-GROUP BY p1.npi, d.drug_name
+SELECT p.npi, d.drug_name
+FROM prescriber as p
+CROSS JOIN drug as d
+WHERE p.specialty_description ='Pain Management' 
+AND p.nppes_provider_city = 'NASHVILLE' 
+AND d.opioid_drug_flag = 'Y'
+GROUP BY p.npi, d.drug_name
 
 --b. Next, report the number of claims per drug per prescriber. Be sure to include all combinations, whether or not the prescriber had any claims. You should report the npi, the drug name, and the number of claims (total_claim_count).
 
-SELECT p1.npi, d.drug_name, SUM(total_claim_count) AS Total_Drug_Count
-FROM prescription as p1
-FULL JOIN drug as d
-	USING (drug_name)
-FULL JOIN prescriber AS p2
-	USING (npi)
-WHERE p2.specialty_description ='Pain Management' AND p2.nppes_provider_city = 'NASHVILLE' AND d.opioid_drug_flag = 'Y'
+SELECT	p1.npi, d.drug_name
+	,	SUM(p2.total_claim_count) AS Total_Drug_Count
+FROM prescriber as p1
+	CROSS JOIN drug as d
+	LEFT JOIN prescription AS p2
+		USING (drug_name)
+WHERE p1.specialty_description ='Pain Management'
+		AND p1.nppes_provider_city = 'NASHVILLE'
+		AND d.opioid_drug_flag = 'Y'
 GROUP BY p1.npi, d.drug_name
-ORDER BY total_drug_count DESC
+ORDER BY npi DESC
 
 --c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
+
+SELECT	p1.npi, d.drug_name
+	,	COALESCE((SUM(p2.total_claim_count)), 0) AS Total_Drug_Count
+FROM prescriber as p1
+	CROSS JOIN drug as d
+	LEFT JOIN prescription AS p2
+		USING (drug_name)
+WHERE p1.specialty_description ='Pain Management' 
+		AND p1.nppes_provider_city = 'NASHVILLE'
+		AND d.opioid_drug_flag = 'Y'
+GROUP BY p1.npi, d.drug_name
+ORDER BY npi DESC
